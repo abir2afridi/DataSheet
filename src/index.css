@@ -138,6 +138,7 @@ html.light ::-webkit-scrollbar-thumb:hover {
 /* High density light container background rewrites */
 html.light [class*="bg-[#020402]"], 
 html.light [class*="bg-[#020403]"], 
+html.light [class*="bg-[#020503]"], 
 html.light [class*="bg-black/95"],
 html.light [class*="bg-black/90"],
 html.light [class*="bg-black/40"],
@@ -155,7 +156,9 @@ html.light [class*="bg-[#050906]"],
 html.light [class*="bg-[#0a0a0a]"], 
 html.light [class*="bg-[#040604]"],
 html.light [class*="bg-[#050a06]/95"],
-html.light [class*="bg-[#050a06]"] {
+html.light [class*="bg-[#050a06]"],
+html.light [class*="bg-[#0e0a0a]"],
+html.light [class*="bg-[#040805]"] {
   background-color: #f4f7f4 !important;
   color: #1a1a1a !important;
 }
@@ -164,7 +167,17 @@ html.light [class*="bg-[#080d0b]"],
 html.light [class*="bg-[#030604]"], 
 html.light [class*="bg-[#050907]"],
 html.light [class*="bg-[#080808]"],
-html.light [class*="bg-[#06120b]"] {
+html.light [class*="bg-[#06120b]"],
+html.light [class*="bg-[#0a0f0d]"],
+html.light [class*="bg-[#0b100d]"],
+html.light [class*="bg-[#0c120e]"],
+html.light [class*="bg-[#09100d]"],
+html.light [class*="bg-[#0e1f18]"],
+html.light [class*="bg-[#091511]"],
+html.light [class*="bg-[#101c13]"],
+html.light [class*="bg-[#102418]"],
+html.light [class*="bg-[#022c22]"],
+html.light [class*="bg-[#030705]"] {
   background-color: #ecf1ec !important;
   color: #1a1a1a !important;
 }
