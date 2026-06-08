@@ -1,0 +1,287 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700;800;900&display=swap');
+@import "tailwindcss";
+
+@theme {
+  /* High Density matrix green palette overrides */
+  --color-emerald-50: #e6ffec;
+  --color-emerald-100: #ccffd3;
+  --color-emerald-200: #99ffa7;
+  --color-emerald-300: #00FF41;
+  --color-emerald-400: #00FF41;
+  --color-emerald-505: #00FF41;
+  --color-emerald-500: #00FF41;
+  --color-emerald-600: #00e536;
+  --color-emerald-700: #00b32a;
+  --color-emerald-800: #00801e;
+  --color-emerald-900: #004d12;
+  --color-emerald-950: #001f07;
+
+  /* High Density orange/critical overrides */
+  --color-red-50: #ffebe6;
+  --color-red-100: #ffd7cc;
+  --color-red-200: #ffa38c;
+  --color-red-300: #ff6e4d;
+  --color-red-400: #FF4100;
+  --color-red-500: #FF4100;
+  --color-red-600: #e63200;
+  --color-red-700: #b32700;
+  --color-red-800: #801c00;
+  --color-red-900: #4d1100;
+  --color-red-950: #1a0600;
+
+  /* High Density gold/protection status overrides */
+  --color-yellow-400: #FFD700;
+  --color-yellow-500: #FFD700;
+  --color-amber-400: #FFD700;
+  --color-amber-500: #FFD700;
+
+  /* Eradicate border roundedness for extreme terminal blockiness */
+  --radius-none: 0px;
+  --radius-xs: 0px;
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-xl: 0px;
+  --radius-2xl: 0px;
+  --radius-3xl: 0px;
+  --radius-full: 9999px;
+}
+
+/* Global resets for pure terminal feel */
+* {
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+  letter-spacing: -0.025em;
+}
+
+/* Clean scrollbar overrides */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: #050505;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 255, 65, 0.2);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #00FF41;
+}
+
+/* Solid High Density dark container backgrounds overrides */
+[class*="bg-[#020402]"], [class*="bg-[#020403]"], [class*="bg-black/40"] {
+  background-color: #050505 !important;
+}
+[class*="bg-[#050806]"], [class*="bg-[#050906]"], [class*="bg-[#0a0a0a]"], [class*="bg-[#040604]"] {
+  background-color: #0a0a0a !important;
+}
+[class*="bg-[#080d0b]"], [class*="bg-[#030604]"], [class*="bg-[#050907]"] {
+  background-color: #080808 !important;
+}
+[class*="bg-[#05a06]"] {
+  background-color: rgb(8 8 8 / 95%) !important;
+}
+
+/* Text highlight map */
+.text-\[\#00ff99\], .text-\[\#00ffcc\], .text-emerald-400, .text-emerald-300 {
+  color: #00FF41 !important;
+}
+.text-\[\#ffaa00\], .text-\[\#ff9900\], .text-\[\#ffbb00\] {
+  color: #ffd700 !important;
+}
+
+/* Selection override */
+*::selection {
+  background-color: #00FF41 !important;
+  color: #000000 !important;
+}
+
+/* Glow indicator on online pulses */
+.bg-emerald-500, .bg-\[\#00ff41\] {
+  background-color: #00FF41 !important;
+  box-shadow: 0 0 6px #00FF41;
+}
+
+/* Glow borders for inputs focus */
+input:focus, textarea:focus, select:focus {
+  border-color: #00FF41 !important;
+  box-shadow: 0 0 5px rgba(0, 255, 65, 0.4) !important;
+}
+
+/* --- High-Density LIGHT THEME overrides inside html.light --- */
+html.light {
+  color-scheme: light;
+}
+
+/* Ensure text on paper light is readable grey-black and dark-matrix-green accents */
+html.light * {
+  color: #0e1e12;
+}
+
+/* Root layout overrides */
+html.light .flex-col.h-screen {
+  background-color: #f7f9f7 !important;
+  color: #006014 !important;
+}
+
+/* Scrollbar tweaks for light mode */
+html.light ::-webkit-scrollbar-track {
+  background: #f4f7f4;
+}
+html.light ::-webkit-scrollbar-thumb {
+  background: rgba(0, 102, 17, 0.2);
+}
+html.light ::-webkit-scrollbar-thumb:hover {
+  background: #007a1c;
+}
+
+/* High density light container background rewrites */
+html.light [class*="bg-[#020402]"], 
+html.light [class*="bg-[#020403]"], 
+html.light [class*="bg-black/95"],
+html.light [class*="bg-black/90"],
+html.light [class*="bg-black/40"],
+html.light [class*="bg-black/50"],
+html.light [class*="bg-black/60"],
+html.light [class*="bg-[#020403]/95"], 
+html.light [class*="bg-[#020402]"], 
+html.light [class*="bg-black"] {
+  background-color: #fcfdfc !important;
+  color: #0d2012 !important;
+}
+
+html.light [class*="bg-[#050806]"], 
+html.light [class*="bg-[#050906]"], 
+html.light [class*="bg-[#0a0a0a]"], 
+html.light [class*="bg-[#040604]"],
+html.light [class*="bg-[#050a06]/95"],
+html.light [class*="bg-[#050a06]"] {
+  background-color: #f4f7f4 !important;
+  color: #1a1a1a !important;
+}
+
+html.light [class*="bg-[#080d0b]"], 
+html.light [class*="bg-[#030604]"], 
+html.light [class*="bg-[#050907]"],
+html.light [class*="bg-[#080808]"],
+html.light [class*="bg-[#06120b]"] {
+  background-color: #ecf1ec !important;
+  color: #1a1a1a !important;
+}
+
+/* Specific component wrapper backgrounds */
+html.light .bg-emerald-950,
+html.light .bg-emerald-950\/40, 
+html.light .bg-emerald-950\/20,
+html.light .bg-emerald-950\/10,
+html.light .bg-emerald-950\/5,
+html.light [class*="bg-emerald-950"] {
+  background-color: #dfede2 !important;
+}
+
+html.light [class*="bg-emerald-900\/30"], 
+html.light [class*="bg-[#101b17]"] {
+  background-color: #e5efe7 !important;
+}
+
+/* Light Mode Border overrides */
+html.light [class*="border-[#1a1a1a]"],
+html.light [class*="border-[#00ff41]"],
+html.light [class*="border-emerald-500\/10"],
+html.light [class*="border-emerald-500\/20"],
+html.light [class*="border-emerald-500\/30"],
+html.light [class*="border-emerald-500\/40"],
+html.light [class*="border-emerald-900"],
+html.light [class*="border-emerald-950"],
+html.light [class*="border-emerald-800\/30"],
+html.light [class*="border-emerald-800"],
+html.light [class*="border-emerald-950\/40"],
+html.light [class*="border-emerald-950\/60"] {
+  border-color: #bad0bf !important;
+}
+
+/* Input/Textareas */
+html.light input, 
+html.light textarea, 
+html.light select {
+  background-color: #f7faf7 !important;
+  color: #0c1f10 !important;
+  border-color: #bad0bf !important;
+}
+
+/* Ensure text readable highlighting map for light mode */
+html.light .text-\[\#00ff99\], 
+html.light .text-\[\#00ffcc\], 
+html.light .text-emerald-400, 
+html.light .text-emerald-300,
+html.light .text-emerald-200,
+html.light .text-emerald-500,
+html.light .hover\:text-\[\#00ffcc\]:hover {
+  color: #007318 !important;
+}
+
+html.light .text-emerald-600,
+html.light .text-emerald-700,
+html.light .text-emerald-800 {
+  color: #1e4d26 !important;
+}
+
+html.light .text-white,
+html.light .text-emerald-100 {
+  color: #0a170d !important;
+}
+
+html.light .text-\[\#ffaa00\], 
+html.light .text-\[\#ff9900\], 
+html.light .text-\[\#ffbb00\],
+html.light .text-[#ffaa00] {
+  color: #9c5c00 !important;
+}
+
+/* Global status badges & pulses */
+html.light .bg-emerald-500, 
+html.light .bg-\[\#00ff41\],
+html.light [class*="bg-[#00ff41]"] {
+  background-color: #007318 !important;
+  box-shadow: 0 0 5px rgba(0, 115, 24, 0.4) !important;
+  color: #ffffff !important;
+}
+
+html.light input:focus, 
+html.light textarea:focus, 
+html.light select:focus {
+  border-color: #007318 !important;
+  box-shadow: 0 0 5px rgba(0, 115, 24, 0.25) !important;
+}
+
+/* Selection highlight override for light mode */
+html.light *::selection {
+  background-color: #007318 !important;
+  color: #ffffff !important;
+}
+
+/* Specific elements visibility fixes */
+html.light tr.bg-\[\#00FF41\]\/5,
+html.light .bg-[#00FF41]/5,
+html.light .bg-\[\#00FF41\]\/10,
+html.light .bg-emerald-950\/5 {
+  background-color: #eaf3eb !important;
+}
+
+html.light .border-2.border-\[\#FFD700\] {
+  border-color: #b58d00 !important;
+  background-color: #fffaf0 !important;
+  color: #8c6200 !important;
+}
+
+html.light .border-2.border-\[\#FF4100\] {
+  border-color: #cc3000 !important;
+  background-color: #fff5f2 !important;
+  color: #a62200 !important;
+}
+
+html.light .border-2.border-\[\#00FF41\]\/30 {
+  border-color: #bad0bf !important;
+  background-color: #f7faf7 !important;
+  color: #007318 !important;
+}

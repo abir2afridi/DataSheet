@@ -1,0 +1,6 @@
+{
+  "name": "SmartSheets",
+  "description": "A high-security, hacker-themed personal spreadsheet, rich-document, and knowledge vault platform featuring cell-level smart locks and instant copy controls.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
