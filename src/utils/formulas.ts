@@ -266,11 +266,11 @@ export function evaluateFormula(
 
     // Evaluate basic math safely
     // Guard against illegal JS inside string to prevent security exploits
-    if (!/^[0-9+\-*/().\s"']+$|^.*#CIRCULAR.*$|^.*#REF.*$/.test(evalStr)) {
+    if (!/^[0-9+\-*/().\s]+$/.test(evalStr)) {
       return "#ERROR!";
     }
 
-    // Direct arithmetic execution
+    // Direct arithmetic execution (safe: only numbers and math operators allowed)
     const result = new Function(`return ${evalStr}`)();
     if (result === Infinity || result === -Infinity) {
       return "#DIV/0!";

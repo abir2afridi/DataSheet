@@ -20,7 +20,7 @@ import Home from "./components/Home";
 import Login from "./components/Login";
 import { searchWorkspace } from "./utils/search";
 import { supabase } from "./lib/supabase";
-import { getFolders, getWorkspaces, createFolder, createWorkspace, updateFolder, updateWorkspace, deleteFolder, deleteWorkspace, getActivityLogs, createActivityLog } from "./lib/db";
+import { getFolders, getWorkspaces, getRecycleBin, addToRecycleBin, createFolder, upsertFolder, createWorkspace, upsertWorkspace, updateFolder, updateWorkspace, deleteFolder, deleteWorkspace, getActivityLogs, createActivityLog } from "./lib/db";
 import { ShieldAlert, Terminal, Sparkles, X, ChevronRight, CornerDownLeft } from "lucide-react";
 
 export default function App() {
@@ -97,10 +97,11 @@ export default function App() {
       if (!user) return;
 
       try {
-        const [dbFolders, dbWorkspaces, dbLogs] = await Promise.all([
+        const [dbFolders, dbWorkspaces, dbLogs, dbTrash] = await Promise.all([
           getFolders(user.id),
           getWorkspaces(user.id),
           getActivityLogs(user.id),
+          getRecycleBin(user.id),
         ]);
 
         // Always set state from Supabase (even if empty — clears stale local data)
@@ -108,6 +109,7 @@ export default function App() {
           id: f.id,
           name: f.name,
           parentId: f.parentId,
+          userId: f.userId,
           color: f.color,
           icon: f.icon,
           isPinned: f.isPinned,
@@ -125,6 +127,7 @@ export default function App() {
         })) : []);
 
         setActivityLogs(dbLogs || []);
+        setTrash(dbTrash || []);
       } catch (e) {
         // Supabase tables might not exist yet
       }
@@ -149,12 +152,7 @@ export default function App() {
     if (!user) return;
     for (const f of folders) {
       try {
-        const existing = folders.find(x => x.id === f.id);
-        if (existing) {
-          await updateFolder(f.id, f);
-        } else {
-          await createFolder(f.name, f.parentId, user.id);
-        }
+        await upsertFolder({ ...f, userId: user.id });
       } catch { /* table may not exist */ }
     }
   };
@@ -164,12 +162,19 @@ export default function App() {
     if (!user) return;
     for (const f of files) {
       try {
-        await updateWorkspace(f.id, f);
-      } catch {
-        try {
-          await createWorkspace(f.name, f.type, f.folderId, user.id);
-        } catch { /* table may not exist */ }
-      }
+        await upsertWorkspace({ ...f, userId: user.id });
+      } catch { /* table may not exist */ }
+    }
+  };
+
+  const syncTrashToDB = async (trashItems?: TrashItem[]) => {
+    if (!trashItems || trashItems.length === 0) return;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    for (const item of trashItems) {
+      try {
+        await addToRecycleBin(user.id, item);
+      } catch { /* table may not exist */ }
     }
   };
 
@@ -178,6 +183,7 @@ export default function App() {
     // Async sync to Supabase (no localStorage — all data stored in Supabase DB)
     syncFoldersToDB(newFolders);
     syncWorkspacesToDB(newFiles);
+    syncTrashToDB(_newTrash);
   };
 
   // --- Dynamic system tracking logging triggers ---

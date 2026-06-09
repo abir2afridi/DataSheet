@@ -116,6 +116,7 @@ export interface Folder {
   id: string;
   name: string;
   parentId: string | null; // null for root-level
+  userId?: string; // owner user id for DB persistence
   color?: string; // Hex color for hacker theme styling
   icon?: string; // Lucide icon identifier
   isPinned?: boolean;
@@ -129,6 +130,7 @@ export interface SmartFile {
   id: string;
   name: string;
   folderId: string | null;
+  userId?: string; // owner user id for DB persistence
   type: WorkspaceType;
   tags: string[];
   createdAt: number;

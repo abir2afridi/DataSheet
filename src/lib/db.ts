@@ -1,5 +1,4 @@
-import { supabaseAdmin } from "./supabase";
-const supabase = supabaseAdmin;
+import { supabase } from "./supabase";
 import type { SmartFile, Folder, TrashItem, ActivityLog, CopyHistoryEntry, CellData, SheetData, DocumentBlock, HybridBlock } from "../types";
 
 // ============================================================
@@ -43,14 +42,19 @@ export async function getFolders(userId: string): Promise<Folder[]> {
   return (data || []).map(mapFolder);
 }
 
-export async function createFolder(name: string, parentId: string | null, userId: string): Promise<Folder> {
+export async function createFolder(name: string, parentId: string | null, userId: string, id?: string): Promise<Folder> {
   const { data, error } = await supabase
     .from("folders")
-    .insert({ name, parent_id: parentId, user_id: userId })
+    .insert({ id: id || `fold_${Date.now()}`, name, parent_id: parentId, user_id: userId })
     .select()
     .single();
   if (error) throw error;
   return mapFolder(data);
+}
+
+export async function upsertFolder(folder: Folder) {
+  const { error } = await supabase.from("folders").upsert(toDbFolder(folder), { onConflict: "id", ignoreDuplicates: false });
+  if (error) throw error;
 }
 
 export async function updateFolder(id: string, updates: Partial<Folder>) {
@@ -79,15 +83,21 @@ export async function createWorkspace(
   name: string,
   type: string,
   folderId: string | null,
-  userId: string
+  userId: string,
+  id?: string
 ): Promise<SmartFile> {
   const { data, error } = await supabase
     .from("workspaces")
-    .insert({ name, type, folder_id: folderId, user_id: userId })
+    .insert({ id: id || `ws_${Date.now()}`, name, type, folder_id: folderId, user_id: userId })
     .select()
     .single();
   if (error) throw error;
   return mapWorkspace(data);
+}
+
+export async function upsertWorkspace(workspace: SmartFile) {
+  const { error } = await supabase.from("workspaces").upsert(toDbWorkspace(workspace), { onConflict: "id", ignoreDuplicates: false });
+  if (error) throw error;
 }
 
 export async function updateWorkspace(id: string, updates: Partial<SmartFile>) {
@@ -419,6 +429,7 @@ function mapFolder(db: any): Folder {
     id: db.id,
     name: db.name,
     parentId: db.parent_id,
+    userId: db.user_id,
     color: db.color,
     icon: db.icon,
     isPinned: db.is_pinned,
@@ -431,8 +442,10 @@ function mapFolder(db: any): Folder {
 
 function toDbFolder(f: Partial<Folder>): any {
   const db: any = {};
+  if (f.id !== undefined) db.id = f.id;
   if (f.name !== undefined) db.name = f.name;
   if (f.parentId !== undefined) db.parent_id = f.parentId;
+  if (f.userId !== undefined) db.user_id = f.userId;
   if (f.color !== undefined) db.color = f.color;
   if (f.icon !== undefined) db.icon = f.icon;
   if (f.isPinned !== undefined) db.is_pinned = f.isPinned;
@@ -444,28 +457,46 @@ function toDbFolder(f: Partial<Folder>): any {
 }
 
 function mapWorkspace(db: any): SmartFile {
+  const payload = db.payload || {};
   return {
     id: db.id,
     name: db.name,
     folderId: db.folder_id,
+    userId: db.user_id,
     type: db.type,
     tags: db.tags || [],
     isFavorite: db.is_favorite,
     isPinned: db.is_pinned,
     isLocked: db.is_locked,
-    createdAt: new Date(db.created_at).getTime(),
-    updatedAt: new Date(db.updated_at).getTime(),
+    createdAt: payload.createdAt || new Date(db.created_at).getTime(),
+    updatedAt: payload.updatedAt || new Date(db.updated_at).getTime(),
+    sheets: payload.sheets,
+    activeSheetId: payload.activeSheetId,
+    docBlocks: payload.docBlocks,
+    hybridBlocks: payload.hybridBlocks,
   };
 }
 
 function toDbWorkspace(w: Partial<SmartFile>): any {
   const db: any = {};
+  if (w.id !== undefined) db.id = w.id;
   if (w.name !== undefined) db.name = w.name;
   if (w.folderId !== undefined) db.folder_id = w.folderId;
+  if (w.userId !== undefined) db.user_id = w.userId;
+  if (w.type !== undefined) db.type = w.type;
   if (w.tags !== undefined) db.tags = w.tags;
   if (w.isFavorite !== undefined) db.is_favorite = w.isFavorite;
   if (w.isPinned !== undefined) db.is_pinned = w.isPinned;
   if (w.isLocked !== undefined) db.is_locked = w.isLocked;
+  // Store full payload for sheets, docBlocks, hybridBlocks, timestamps
+  db.payload = {
+    sheets: w.sheets,
+    activeSheetId: w.activeSheetId,
+    docBlocks: w.docBlocks,
+    hybridBlocks: w.hybridBlocks,
+    createdAt: w.createdAt,
+    updatedAt: w.updatedAt,
+  };
   return db;
 }
 

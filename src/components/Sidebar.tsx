@@ -337,7 +337,7 @@ export default function Sidebar({
         <div className="fixed inset-0 bg-black/60 z-30 lg:hidden" onClick={onMobileClose} />
       )}
       <div ref={sidebarRef} className={`w-64 bg-[#080d0b] border-r border-emerald-500/20 flex flex-col font-mono text-emerald-400 select-none overflow-hidden text-xs shrink-0 transition-transform duration-300 ease-in-out
-        ${mobileOpen ? 'fixed left-0 top-14 z-40 shadow-2xl translate-x-0 h-[calc(100vh-3.5rem)]' : 'lg:flex h-full -translate-x-full fixed left-0 top-14 z-40 h-[calc(100vh-3.5rem)] lg:translate-x-0 lg:relative lg:top-auto lg:z-auto lg:h-full'}`}>
+        ${mobileOpen ? 'fixed left-0 top-14 z-40 shadow-2xl translate-x-0 h-[calc(100vh-3.5rem)]' : 'lg:flex -translate-x-full fixed left-0 top-14 z-40 h-[calc(100vh-3.5rem)] lg:translate-x-0 lg:relative lg:top-auto lg:z-auto lg:h-full'}`}>
       
       {/* Upper Navigation (Module links) */}
       <div className="p-3 border-b border-emerald-500/10 space-y-1">
@@ -350,7 +350,7 @@ export default function Sidebar({
           }`}
         >
           <BarChart2 size={14} className="text-[#10b981]" />
-          <span className="font-bold uppercase tracking-wider">Security Analytics</span>
+          <span className="font-bold uppercase tracking-wider">Dashboard</span>
         </button>
 
         <button

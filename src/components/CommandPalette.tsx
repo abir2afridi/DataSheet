@@ -113,7 +113,7 @@ export default function CommandPalette({
       }
     } else {
       if (selectedIndex < matchedFiles.length) {
-        onSelectFile(matchedFiles[selectedIndex].id);
+        onSelectFile(matchedFiles[selectedIndex].fileId);
         onClose();
       } else if (query.trim()) {
         // Create new spreadsheet by default if not exists
