@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useRef, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   FileText,
   Bookmark,
@@ -83,7 +83,7 @@ export default function DocumentWorkspace({
   }, [blocks]);
 
   // Command item categories for slash controls popup drawer
-  const slashItems = [
+  const slashItems: { type: DocumentBlock["type"]; title: string; desc: string; icon: React.ReactNode }[] = [
     { type: "paragraph", title: "Paragraph text", desc: "Start writing normal body text.", icon: <Type size={14} /> },
     { type: "heading1", title: "Heading level 1", desc: "Configure massive title headers.", icon: <Heading1 size={14} /> },
     { type: "heading2", title: "Heading level 2", desc: "Configure standard section subheaders.", icon: <Heading2 size={14} /> },
@@ -108,11 +108,11 @@ export default function DocumentWorkspace({
   };
 
   const handleBlockContentChange = (id: string, text: string) => {
-    // Slash matching check
+    // Slash matching check: only trigger when / is the very first character
     const currentBlock = blocks.find(b => b.id === id);
-    if (text.startsWith("/")) {
+    if (text === "/") {
       setShowSlashMenu(true);
-      setSlashQuery(text.substring(1));
+      setSlashQuery("");
     } else {
       setShowSlashMenu(false);
     }
@@ -122,7 +122,7 @@ export default function DocumentWorkspace({
   };
 
   // Convert block archetype template on select
-  const convertBlockType = (id: string, type: any) => {
+  const convertBlockType = (id: string, type: DocumentBlock["type"]) => {
     const updated = blocks.map(b => {
       if (b.id === id) {
         // Strip out starting slash if they converted from menu
@@ -170,7 +170,15 @@ export default function DocumentWorkspace({
     if (blocks.length <= 1) return;
 
     const currentIndex = blocks.findIndex(b => b.id === id);
-    if (currentIndex <= 0) return;
+    if (currentIndex < 0) return;
+
+    // If it's the first block, just delete without merging
+    if (currentIndex === 0) {
+      const newBlocksList = blocks.filter(b => b.id !== id);
+      saveBlockListChange(newBlocksList);
+      setActiveBlockId(newBlocksList[0]?.id || null);
+      return;
+    }
 
     const prevBlock = blocks[currentIndex - 1];
     const currentBlock = blocks[currentIndex];
@@ -202,7 +210,7 @@ export default function DocumentWorkspace({
 
   // Handle slash menus arrow movements
   const handleBlockKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>, id: string) => {
-    if (showSlashMenu) {
+    if (showSlashMenu && filteredSlashItems.length > 0) {
       if (e.key === "ArrowDown") {
         e.preventDefault();
         setSlashMenuIndex(prev => (prev + 1) % filteredSlashItems.length);
@@ -231,6 +239,8 @@ export default function DocumentWorkspace({
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       insertNewBlockBelow(id);
+    } else if (e.key === "Enter" && e.shiftKey) {
+      // Allow Shift+Enter for newline within same block (textarea doesn't support this natively in single-line mode)
     } else if (e.key === "Backspace" && blocks.find(b => b.id === id)?.content === "") {
       e.preventDefault();
       deleteBlockAndMergePrev(id);
@@ -358,6 +368,7 @@ export default function DocumentWorkspace({
                   </button>
                   <button
                     onClick={() => {
+                      if (blocks.length <= 1) return;
                       const list = [...blocks];
                       const idx = list.findIndex(b => b.id === block.id);
                       list.splice(idx, 1);

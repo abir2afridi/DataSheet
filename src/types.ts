@@ -88,10 +88,18 @@ export interface DocumentBlock {
   metadata?: Record<string, any>;
 }
 
+export interface DescriptionTab {
+  id: string;
+  title: string;
+  content: string;
+}
+
 export interface HybridBlock {
   id: string;
   type: "spreadsheet" | "document" | "code" | "checklist" | "prompt" | "reference";
   title: string;
+  locked?: boolean;
+  descriptionTabs?: DescriptionTab[];
   spreadsheetData?: {
     rows: number;
     cols: number;

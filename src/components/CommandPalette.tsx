@@ -3,23 +3,28 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Search, Terminal, FileText, Grid, LayoutGrid, X, FolderCode } from "lucide-react";
-import { SmartFile, WorkspaceType } from "../types";
+import { SmartFile, WorkspaceType, Folder } from "../types";
+import { searchWorkspace } from "../utils/search";
 
 interface CommandPaletteProps {
   isOpen: boolean;
   onClose: () => void;
   files: SmartFile[];
+  folders: Folder[];
   onSelectFile: (fileId: string) => void;
   onCreateFile: (type: WorkspaceType, name: string) => void;
   onRunSystemAction: (action: string) => void;
+  onOpen?: () => void;
 }
 
 export default function CommandPalette({
   isOpen,
   onClose,
+  onOpen,
   files,
+  folders = [],
   onSelectFile,
   onCreateFile,
   onRunSystemAction,
@@ -45,14 +50,12 @@ export default function CommandPalette({
       if ((e.ctrlKey || e.metaKey) && (e.key === "k" || e.key === "K" || e.key === "/")) {
         e.preventDefault();
         if (isOpen) onClose();
-        else onClose(); // parent handles toggle
+        else if (onOpen) onOpen();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, onClose]);
-
-  if (!isOpen) return null;
+  }, [isOpen, onClose, onOpen]);
 
   // Filter criteria
   const isSystemCommand = query.startsWith(">");
@@ -73,11 +76,19 @@ export default function CommandPalette({
     c => c.cmd.includes(cleanQuery) || c.desc.toUpperCase().includes(cleanQuery)
   );
 
-  const matchedFiles = files.filter(f => f.name.toUpperCase().includes(cleanQuery));
+  const searchResults = useMemo(() => {
+    if (!query.trim() || isSystemCommand) return [];
+    return searchWorkspace(query.trim(), files, folders as Folder[]);
+  }, [query, files, folders]);
 
-  const totalItems = isSystemCommand ? matchedSystem.length : matchedFiles.length + 1; // +1 for "or create new" if typing
+  const matchedFiles = isSystemCommand ? [] : searchResults;
+
+  const totalItems = isSystemCommand ? matchedSystem.length : matchedFiles.length + (query.trim() ? 1 : 0);
+
+  if (!isOpen) return null;
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (totalItems === 0) return;
     if (e.key === "ArrowDown") {
       e.preventDefault();
       setSelectedIndex(prev => (prev + 1) % totalItems);
@@ -182,35 +193,36 @@ export default function CommandPalette({
             <>
               {matchedFiles.length > 0 && (
                 <div className="px-2 py-1 text-[10px] text-emerald-700 uppercase tracking-widest font-bold">
-                  Files Located ({matchedFiles.length})
+                  Search Results ({matchedFiles.length})
                 </div>
               )}
-              {matchedFiles.map((file, index) => (
+              {matchedFiles.map((result, index) => (
                 <button
-                  key={file.id}
+                  key={`${result.fileId}-${index}`}
                   onClick={() => {
-                    onSelectFile(file.id);
+                    onSelectFile(result.fileId);
                     onClose();
                   }}
-                  className={`w-full text-left px-3 py-2 rounded flex items-center justify-between text-xs transition-colors ${
+                  className={`w-full text-left px-3 py-2 rounded flex flex-col text-xs transition-colors ${
                     index === selectedIndex
                       ? "bg-emerald-950/40 text-emerald-300 border-l-2 border-emerald-500 pl-2.5"
                       : "hover:bg-emerald-950/10 text-emerald-500/80"
                   }`}
                 >
-                  <div className="flex items-center gap-2 max-w-[70%]">
-                    {file.type === WorkspaceType.SPREADSHEET && <Grid size={14} className="text-emerald-500 shrink-0" />}
-                    {file.type === WorkspaceType.DOCUMENT && <FileText size={14} className="text-[#00ffcc] shrink-0" />}
-                    {file.type === WorkspaceType.HYBRID && <LayoutGrid size={14} className="text-[#ff9900] shrink-0" />}
-                    <span className="truncate">{file.name}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    {file.tags.slice(0, 2).map(t => (
-                      <span key={t} className="text-[9px] bg-emerald-950/40 px-1.5 py-0.5 rounded text-emerald-600">
-                        #{t}
+                  <div className="flex items-center justify-between w-full">
+                    <div className="flex items-center gap-2 max-w-[65%]">
+                      <span className="text-[9px] bg-emerald-950/50 px-1 py-0.5 rounded text-emerald-500 uppercase">
+                        {result.matchType}
                       </span>
-                    ))}
-                    <span className="text-[10px] uppercase text-emerald-700/80">{file.type}</span>
+                      <span className="truncate font-bold">{result.fileName}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] text-emerald-700/80">{result.fileType}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 mt-0.5 w-full">
+                    <span className="text-[9px] text-emerald-600 truncate max-w-[80%]">{result.matchSnippet}</span>
+                    <span className="text-[9px] text-emerald-700/60 ml-auto">{result.path}</span>
                   </div>
                 </button>
               ))}
@@ -235,10 +247,16 @@ export default function CommandPalette({
                 </button>
               )}
 
-              {matchedFiles.length === 0 && !query.trim() && (
+              {matchedFiles.length === 0 && (
                 <div className="p-8 text-center text-xs text-emerald-700">
-                  <p>Begin typing to filter files...</p>
-                  <p className="mt-1 text-[10px] opacity-60">e.g., "Passwords", "Prompts", "My Ledger"</p>
+                  {query.trim() ? (
+                    <p>No matches found. Try a different search term.</p>
+                  ) : (
+                    <>
+                      <p>Begin typing to search workspace...</p>
+                      <p className="mt-1 text-[10px] opacity-60">Searches cells, documents, tags, folders &amp; more</p>
+                    </>
+                  )}
                 </div>
               )}
             </>

@@ -4,16 +4,23 @@
  */
 
 import { useState, useEffect, useMemo } from "react";
-import { SmartFile, Folder, TrashItem, ActivityLog, CopyHistoryEntry, WorkspaceType, LockLevel, SheetData, CellData } from "./types";
+import { SmartFile, Folder, TrashItem, ActivityLog, CopyHistoryEntry, HybridBlock, WorkspaceType, LockLevel, SheetData, CellData } from "./types";
 import Header from "./components/Header";
 import Sidebar from "./components/Sidebar";
 import Dashboard from "./components/Dashboard";
+import About from "./components/About";
+import Profile from "./components/Profile";
+import Developer from "./components/Developer";
 import RecoveryVault from "./components/RecoveryVault";
 import SpreadsheetWorkspace from "./components/SpreadsheetWorkspace";
 import DocumentWorkspace from "./components/DocumentWorkspace";
 import HybridWorkspace from "./components/HybridWorkspace";
 import CommandPalette from "./components/CommandPalette";
+import Home from "./components/Home";
+import Login from "./components/Login";
 import { searchWorkspace } from "./utils/search";
+import { supabase } from "./lib/supabase";
+import { getFolders, getWorkspaces, createFolder, createWorkspace, updateFolder, updateWorkspace, deleteFolder, deleteWorkspace, getActivityLogs, createActivityLog } from "./lib/db";
 import { ShieldAlert, Terminal, Sparkles, X, ChevronRight, CornerDownLeft } from "lucide-react";
 
 export default function App() {
@@ -24,11 +31,16 @@ export default function App() {
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
   const [copyHistory, setCopyHistory] = useState<CopyHistoryEntry[]>([]);
 
+  // --- Auth state ---
+  const [currentUser, setCurrentUser] = useState<string | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
   // --- Layout Views Coordinates ---
   const [activeFileId, setActiveFileId] = useState<string | null>(null);
-  const [activeView, setActiveView] = useState<"editor" | "dashboard" | "recovery">("dashboard");
+  const [activeView, setActiveView] = useState<"home" | "login" | "editor" | "dashboard" | "recovery" | "profile" | "about" | "developer">("home");
   const [activeTag, setActiveTag] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   // --- Flagship state togglers ---
   const [unlockModeActive, setUnlockModeActive] = useState(false);
@@ -53,151 +65,138 @@ export default function App() {
     }
   }, [theme]);
 
-  // Load from local localStorage on build-up
+  // Initialize Supabase auth session
   useEffect(() => {
-    const cachedFiles = localStorage.getItem("smartsheets_files");
-    const cachedFolders = localStorage.getItem("smartsheets_folders");
-    const cachedTrash = localStorage.getItem("smartsheets_trash");
-    const cachedLogs = localStorage.getItem("smartsheets_logs");
-    const cachedCopies = localStorage.getItem("smartsheets_copies");
+    const init = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        const username = session.user.user_metadata?.username || session.user.email?.split("@")[0] || "user";
+        setCurrentUser(username);
+        setActiveView("dashboard");
+      }
+      setAuthLoading(false);
+    };
+    init();
 
-    if (cachedFiles && cachedFolders) {
-      setFiles(JSON.parse(cachedFiles));
-      setFolders(JSON.parse(cachedFolders));
-      setTrash(cachedTrash ? JSON.parse(cachedTrash) : []);
-      setActivityLogs(cachedLogs ? JSON.parse(cachedLogs) : []);
-      setCopyHistory(cachedCopies ? JSON.parse(cachedCopies) : []);
-    } else {
-      // First initiation: pre-seed awesome hacker structures examples
-      seedDefaultVaultData();
-    }
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        const username = session.user.user_metadata?.username || session.user.email?.split("@")[0] || "user";
+        setCurrentUser(username);
+        setActiveView("dashboard");
+      }
+    });
+    return () => subscription.unsubscribe();
   }, []);
 
-  // Save changes to cache immediately
-  const persistState = (newFiles: SmartFile[], newFolders: Folder[], newTrash?: TrashItem[], newLogs?: ActivityLog[], newCopies?: CopyHistoryEntry[]) => {
-    localStorage.setItem("smartsheets_files", JSON.stringify(newFiles));
-    localStorage.setItem("smartsheets_folders", JSON.stringify(newFolders));
-    if (newTrash) localStorage.setItem("smartsheets_trash", JSON.stringify(newTrash));
-    if (newLogs) localStorage.setItem("smartsheets_logs", JSON.stringify(newLogs));
-    if (newCopies) localStorage.setItem("smartsheets_copies", JSON.stringify(newCopies));
+  // Load data from Supabase when user authenticates
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const loadFromDB = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      try {
+        const [dbFolders, dbWorkspaces, dbLogs] = await Promise.all([
+          getFolders(user.id),
+          getWorkspaces(user.id),
+          getActivityLogs(user.id),
+        ]);
+
+        // Always set state from Supabase (even if empty — clears stale local data)
+        setFolders(dbFolders.length > 0 ? dbFolders.map(f => ({
+          id: f.id,
+          name: f.name,
+          parentId: f.parentId,
+          color: f.color,
+          icon: f.icon,
+          isPinned: f.isPinned,
+          isFavorite: f.isFavorite,
+          isArchived: f.isArchived,
+          isLocked: f.isLocked,
+          password: f.password,
+        })) : []);
+
+        setFiles(dbWorkspaces.length > 0 ? dbWorkspaces.map(w => ({
+          ...w,
+          tags: w.tags || [],
+          createdAt: w.createdAt,
+          updatedAt: w.updatedAt,
+        })) : []);
+
+        setActivityLogs(dbLogs || []);
+      } catch (e) {
+        // Supabase tables might not exist yet
+      }
+    };
+    loadFromDB();
+  }, [currentUser]);
+
+  // Clear stale localStorage from previous versions on mount
+  useEffect(() => {
+    localStorage.removeItem("smartsheets_files");
+    localStorage.removeItem("smartsheets_folders");
+    localStorage.removeItem("smartsheets_trash");
+    localStorage.removeItem("smartsheets_logs");
+    localStorage.removeItem("smartsheets_copies");
+    localStorage.removeItem("smartsheets_session");
+    localStorage.removeItem("smartsheets_version");
+  }, []);
+
+  // Sync to Supabase when available
+  const syncFoldersToDB = async (folders: Folder[]) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    for (const f of folders) {
+      try {
+        const existing = folders.find(x => x.id === f.id);
+        if (existing) {
+          await updateFolder(f.id, f);
+        } else {
+          await createFolder(f.name, f.parentId, user.id);
+        }
+      } catch { /* table may not exist */ }
+    }
   };
 
-  // Pre-seed mock values
-  const seedDefaultVaultData = () => {
-    const f1Id = "fold_vault";
-    const f2Id = "fold_sandbox";
+  const syncWorkspacesToDB = async (files: SmartFile[]) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    for (const f of files) {
+      try {
+        await updateWorkspace(f.id, f);
+      } catch {
+        try {
+          await createWorkspace(f.name, f.type, f.folderId, user.id);
+        } catch { /* table may not exist */ }
+      }
+    }
+  };
 
-    const defaultFolders: Folder[] = [
-      { id: f1Id, name: "Knowledge Vault", parentId: null, color: "#10b981", icon: "FolderLock", isPinned: true },
-      { id: f2Id, name: "Aesthetic Sandboxes", parentId: null, color: "#ffaa00", icon: "Sliders" },
-    ];
-
-    const spreadsheetCells: Record<string, CellData> = {
-      A1: { value: "Prompt Frameworks Overview", lockLevel: LockLevel.SOFT, style: { bold: true, color: "#00ffcc" } },
-      A2: { value: "Parameters weight sum:", lockLevel: LockLevel.NONE },
-      B2: { value: "250", lockLevel: LockLevel.NONE },
-      A3: { value: "Execution speed sum:", lockLevel: LockLevel.NONE },
-      B3: { value: "1100", lockLevel: LockLevel.NONE },
-      A4: { value: "Aggregate score:", lockLevel: LockLevel.NONE },
-      B4: { value: "3540", formula: "=SUM(B2,B3)", lockLevel: LockLevel.PROTECTED },
-      A5: { value: "sk_vault_key_100x24", lockLevel: LockLevel.VAULT, lockPassword: "admin", note: "Encrypted API string" },
-      A6: { value: "Type restore in console to break lock.", lockLevel: LockLevel.PERMANENT, note: "Permanent recovery guidelines" },
-    };
-
-    const sheetModel: SheetData = {
-      id: "sh_core",
-      name: "Smart Ledger Core",
-      rows: 40,
-      cols: 16,
-      cells: spreadsheetCells,
-      frozenRows: 1,
-      frozenCols: 1,
-    };
-
-    const defaultFiles: SmartFile[] = [
-      {
-        id: "file_sheet",
-        name: "Security Prompts Ledger",
-        folderId: f1Id,
-        type: WorkspaceType.SPREADSHEET,
-        tags: ["prompts", "api", "finances"],
-        sheets: [sheetModel],
-        activeSheetId: "sh_core",
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-        isPinned: true,
-      },
-      {
-        id: "file_doc",
-        name: "Vault Systems Manual",
-        folderId: f1Id,
-        type: WorkspaceType.DOCUMENT,
-        tags: ["study", "manual"],
-        docBlocks: [
-          { id: "blk_1", type: "heading1", content: "SmartSheets Crypt System Manual" },
-          { id: "blk_2", type: "quote", content: "You are entering a private local node layout. Every block and grid item supports smart cell lock firmware." },
-          { id: "blk_3", type: "heading2", content: "Core Operations Checklist" },
-          { id: "blk_4", type: "checklist_item", content: "Configure custom passwords on Vault Locks (Level 3)", checked: true },
-          { id: "blk_5", type: "checklist_item", content: "Assemble hybrid layouts chaining checklists and spreadsheet blocks", checked: false },
-        ],
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-      },
-      {
-        id: "file_hybrid",
-        name: "Modular Developer Hub",
-        folderId: f2Id,
-        type: WorkspaceType.HYBRID,
-        tags: ["sandbox", "prompts"],
-        hybridBlocks: [
-          {
-            id: "hy_1",
-            type: "prompt",
-            title: "Secured Agent Prompter",
-            promptTemplate: "Review and evaluate potential SQL execution paths targeting variables: $PROMPTVAR",
-          },
-          {
-            id: "hy_2",
-            type: "checklist",
-            title: "Daily Standup Steps Tracker",
-            checklistItems: [
-              { id: "c1", text: "Commit spreadsheet cell changes to localStorage", done: true },
-              { id: "c2", text: "Validate formula circular dependency loops", done: false },
-            ],
-          },
-        ],
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-      },
-    ];
-
-    // Seed logs
-    const seedLogs: ActivityLog[] = [
-      { id: "log_1", timestamp: Date.now() - 3600000, type: "import", details: "Core sandbox schemas successfully mounted." },
-    ];
-
-    setFiles(defaultFiles);
-    setFolders(defaultFolders);
-    setActivityLogs(seedLogs);
-    setTrash([]);
-    setCopyHistory([]);
-    persistState(defaultFiles, defaultFolders, [], seedLogs, []);
-
-    // Load active file by default
-    setActiveFileId(defaultFiles[0].id);
+  // Save changes to cache immediately
+  const persistState = (newFiles: SmartFile[], newFolders: Folder[], _newTrash?: TrashItem[], _newLogs?: ActivityLog[], _newCopies?: CopyHistoryEntry[]) => {
+    // Async sync to Supabase (no localStorage — all data stored in Supabase DB)
+    syncFoldersToDB(newFolders);
+    syncWorkspacesToDB(newFiles);
   };
 
   // --- Dynamic system tracking logging triggers ---
-  const handleLogActivity = (type: any, details: string) => {
+  const handleLogActivity = async (type: ActivityLog["type"], details: string) => {
     const log: ActivityLog = {
       id: `log_${Date.now()}`,
       timestamp: Date.now(),
       type,
       details,
     };
-    const updated = [log, ...activityLogs].slice(0, 50); // limit 50 logs
+    const updated = [log, ...activityLogs].slice(0, 50);
     setActivityLogs(updated);
     persistState(files, folders, trash, updated, copyHistory);
+
+    // Sync to Supabase
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      try { await createActivityLog(user.id, type, details); } catch {}
+    }
   };
 
   // Hover copy logs register
@@ -270,7 +269,7 @@ export default function App() {
   };
 
   // --- Document File Actions ---
-  const handleCreateFile = (type: WorkspaceType, name: string, folderId: string | null) => {
+  const handleCreateFile = (type: WorkspaceType, name: string, folderId: string | null, hybridBlockType?: "spreadsheet" | "document" | "code" | "checklist" | "prompt" | "reference") => {
     const fileId = `file_${Date.now()}`;
     const freshPayload: SmartFile = {
       id: fileId,
@@ -303,9 +302,15 @@ export default function App() {
         { id: `blk_p_${Date.now()}`, type: "paragraph", content: "Begin writing. Type '/' to trigger block templates." },
       ];
     } else if (type === WorkspaceType.HYBRID) {
-      freshPayload.hybridBlocks = [
-        { id: `hy_${Date.now()}`, type: "document", title: name, docContent: "Initialize components from the upper append choices." },
-      ];
+      const bt = hybridBlockType || "document";
+      const block: HybridBlock = { id: `hy_${Date.now()}`, type: bt, title: name };
+      if (bt === "document") block.docContent = "Initialize components from the upper append choices.";
+      if (bt === "code") { block.codeLanguage = "javascript"; block.docContent = "// Write your script here\n"; }
+      if (bt === "checklist") block.checklistItems = [{ id: `cl_${Date.now()}`, text: "First task", done: false }];
+      if (bt === "prompt") block.promptTemplate = "Write your prompt here...";
+      if (bt === "reference") block.referenceUrl = "https://";
+      if (bt === "spreadsheet") block.spreadsheetData = { rows: 20, cols: 8, cells: { A1: { value: "Start here", lockLevel: LockLevel.NONE } } };
+      freshPayload.hybridBlocks = [block];
     }
 
     const updatedFiles = [...files, freshPayload];
@@ -412,15 +417,16 @@ export default function App() {
   // Terminal actions run
   const handleRunSystemAction = (action: string) => {
     if (action === "lock_all") {
-      // Apply broad Lock level 1 on all spreadsheet cells
+      // Apply broad Lock level 1 only to unlocked cells (respect existing locks)
       const updatedFiles = files.map(f => {
         if (f.type === WorkspaceType.SPREADSHEET && f.sheets) {
           const sheetsMod = f.sheets.map(sheet => {
             const cellsCopy = { ...sheet.cells };
             Object.keys(cellsCopy).forEach(coord => {
+              const existing = cellsCopy[coord];
               cellsCopy[coord] = {
-                ...cellsCopy[coord],
-                lockLevel: LockLevel.SOFT,
+                ...existing,
+                lockLevel: existing.lockLevel === LockLevel.NONE ? LockLevel.SOFT : existing.lockLevel,
               };
             });
             return { ...sheet, cells: cellsCopy };
@@ -431,7 +437,7 @@ export default function App() {
       });
       setFiles(updatedFiles);
       persistState(updatedFiles, folders, trash, activityLogs, copyHistory);
-      handleLogActivity("lock", "Dispatched global lock levels down to all coordinates");
+      handleLogActivity("lock", "Dispatched global soft locks to unprotected cells");
       alert("GLOBAL SOFT ENCRYPTION APPLIED SUCCESS.");
     } else if (action === "backup") {
       // Build raw copy backup downloadable
@@ -503,13 +509,36 @@ export default function App() {
     return { locked, total, vault };
   }, [files]);
 
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setCurrentUser(null);
+    setActiveView("home");
+    setActiveFileId(null);
+  };
+
+  if (authLoading) {
+    return (
+      <div className="h-screen bg-[#020402] flex items-center justify-center">
+        <div className="flex items-center gap-2 text-emerald-500">
+          <span className="w-4 h-4 border border-emerald-500 border-t-transparent animate-spin rounded-full" />
+          <span className="text-xs">Restoring session...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (activeView === "login") {
+    return <Login onBack={() => setActiveView("home")} />;
+  }
+
   return (
-    <div className="flex flex-col h-screen bg-[#020402] text-emerald-400 font-mono select-none overflow-hidden antialiased">
+    <div className="flex flex-col h-screen bg-[#020402] text-emerald-400 font-mono select-none overflow-hidden antialiased max-w-full">
       
       {/* Cybersecurity Top Toolbar */}
       <Header
         onOpenPalette={() => setIsCommandPaletteOpen(true)}
         onSearch={setSearchQuery}
+        searchQuery={searchQuery}
         unlockModeActive={unlockModeActive}
         onToggleUnlockMode={() => setUnlockModeActive(!unlockModeActive)}
         lockStats={globalLockStats}
@@ -520,11 +549,16 @@ export default function App() {
           setTheme(next);
           handleLogActivity("edit", `Switched active design theme to ${next.toUpperCase()}`);
         }}
+        onToggleMobileSidebar={() => setMobileSidebarOpen(v => !v)}
+        mobileSidebarOpen={mobileSidebarOpen}
+        isHome={activeView === "home"}
+        onLogin={() => setActiveView("login")}
       />
 
       {/* Main Structural row layout */}
-      <div className="flex-1 flex overflow-hidden relative">
+      <div className="flex-1 flex overflow-hidden relative max-w-full">
         
+        {activeView === "home" ? <Home onLaunch={() => setActiveView("login")} onLogin={() => setActiveView("login")} /> : <>
         {/* Workspace directory browser */}
         <Sidebar
           files={filteredFiles}
@@ -546,6 +580,10 @@ export default function App() {
           onArchiveFolder={handleArchiveFolder}
           activeTag={activeTag}
           onSelectTag={setActiveTag}
+          currentUser={currentUser}
+          onLogout={handleLogout}
+          mobileOpen={mobileSidebarOpen}
+          onMobileClose={() => setMobileSidebarOpen(false)}
         />
 
         {/* Dynamic Center Stage Switchboard */}
@@ -576,7 +614,7 @@ export default function App() {
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">
                           <span className="text-[#00ffcc] font-bold text-xs">{res.fileName}</span>
-                          <span className="text-[9px] bg-emerald-950 px-1.5 py-0.2 rounded text-emerald-500 uppercase">
+                          <span className="text-[9px] bg-emerald-950 px-1.5 py-0.5 rounded text-emerald-500 uppercase">
                             {res.fileType}
                           </span>
                         </div>
@@ -612,6 +650,22 @@ export default function App() {
                 persistState(files, folders, trash, [], copyHistory);
               }}
               onRestoreFromLogs={handleRestoreFromLogs}
+            />
+          ) : activeView === "about" ? (
+            <About />
+          ) : activeView === "developer" ? (
+            <Developer theme={theme} />
+          ) : activeView === "profile" ? (
+            <Profile
+              filesCount={files.length}
+              foldersCount={folders.length}
+              logsCount={activityLogs.length}
+              theme={theme}
+              onToggleTheme={() => {
+                const next = theme === "dark" ? "light" : "dark";
+                setTheme(next);
+                handleLogActivity("edit", `Switched active design theme to ${next.toUpperCase()}`);
+              }}
             />
           ) : activeView === "recovery" ? (
             <RecoveryVault
@@ -656,13 +710,16 @@ export default function App() {
             )
           )}
         </div>
+      </>}
       </div>
 
       {/* Dynamic Floating Command Palette Popup Overlay */}
       <CommandPalette
         isOpen={isCommandPaletteOpen}
         onClose={() => setIsCommandPaletteOpen(false)}
+        onOpen={() => setIsCommandPaletteOpen(true)}
         files={files}
+        folders={folders}
         onSelectFile={(id) => {
           setActiveFileId(id);
           setActiveView("editor");

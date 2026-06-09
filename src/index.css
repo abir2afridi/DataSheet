@@ -53,6 +53,12 @@
   letter-spacing: -0.025em;
 }
 
+/* Prevent horizontal scroll at browser level */
+html, body {
+  overflow-x: hidden !important;
+  width: 100% !important;
+}
+
 /* Clean scrollbar overrides */
 ::-webkit-scrollbar {
   width: 4px;
@@ -177,7 +183,8 @@ html.light [class*="bg-[#091511]"],
 html.light [class*="bg-[#101c13]"],
 html.light [class*="bg-[#102418]"],
 html.light [class*="bg-[#022c22]"],
-html.light [class*="bg-[#030705]"] {
+html.light [class*="bg-[#030705]"],
+html.light [class*="bg-[#101c18]"] {
   background-color: #ecf1ec !important;
   color: #1a1a1a !important;
 }
@@ -197,9 +204,25 @@ html.light [class*="bg-[#101b17]"] {
   background-color: #e5efe7 !important;
 }
 
+/* Lock indicator backgrounds for light mode */
+html.light [class*="bg-sky-950"],
+html.light [class*="bg-amber-950"],
+html.light [class*="bg-orange-950"],
+html.light [class*="bg-red-950"] {
+  background-color: transparent !important;
+}
+
+/* Cell selection and lock tint backgrounds */
+html.light [class*="bg-[#10b981]/10"],
+html.light [class*="bg-[#10b981]/20"],
+html.light [class*="bg-[#10b981]/40"] {
+  background-color: #d4e8d8 !important;
+}
+
 /* Light Mode Border overrides */
 html.light [class*="border-[#1a1a1a]"],
 html.light [class*="border-[#00ff41]"],
+html.light [class*="border-[#10b981]/"],
 html.light [class*="border-emerald-500\/10"],
 html.light [class*="border-emerald-500\/20"],
 html.light [class*="border-emerald-500\/30"],
@@ -229,6 +252,7 @@ html.light .text-emerald-400,
 html.light .text-emerald-300,
 html.light .text-emerald-200,
 html.light .text-emerald-500,
+html.light .text-emerald-505,
 html.light .hover\:text-\[\#00ffcc\]:hover {
   color: #007318 !important;
 }
@@ -246,8 +270,7 @@ html.light .text-emerald-100 {
 
 html.light .text-\[\#ffaa00\], 
 html.light .text-\[\#ff9900\], 
-html.light .text-\[\#ffbb00\],
-html.light .text-[#ffaa00] {
+html.light .text-\[\#ffbb00\] {
   color: #9c5c00 !important;
 }
 
@@ -267,6 +290,15 @@ html.light select:focus {
   box-shadow: 0 0 5px rgba(0, 115, 24, 0.25) !important;
 }
 
+/* Hover state backgrounds for light mode */
+html.light [class*="hover:bg-emerald-950"] {
+  background-color: transparent !important;
+}
+
+html.light [class*="hover:bg-red-950"] {
+  background-color: transparent !important;
+}
+
 /* Selection highlight override for light mode */
 html.light *::selection {
   background-color: #007318 !important;
@@ -275,10 +307,18 @@ html.light *::selection {
 
 /* Specific elements visibility fixes */
 html.light tr.bg-\[\#00FF41\]\/5,
-html.light .bg-[#00FF41]/5,
+html.light .bg-\[\#00FF41\]\/5,
 html.light .bg-\[\#00FF41\]\/10,
 html.light .bg-emerald-950\/5 {
   background-color: #eaf3eb !important;
+}
+
+/* Placeholder text colors for light mode */
+html.light ::placeholder,
+html.light input::placeholder,
+html.light textarea::placeholder {
+  color: #7a9a80 !important;
+  opacity: 1 !important;
 }
 
 html.light .border-2.border-\[\#FFD700\] {
@@ -297,4 +337,9 @@ html.light .border-2.border-\[\#00FF41\]\/30 {
   border-color: #bad0bf !important;
   background-color: #f7faf7 !important;
   color: #007318 !important;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
 }

@@ -121,7 +121,7 @@ export default function RecoveryVault({
             <h3 className="text-emerald-300 font-bold uppercase">Dynamic Rollback Frame</h3>
             <p className="text-emerald-600 font-sans text-[11px]">System checkpoints track precise modifications.</p>
           </div>
-          <RefreshCw size={24} className="text-emerald-800 animate-reverse-spin" />
+          <RefreshCw size={24} className="text-emerald-800 animate-spin" />
         </div>
       </div>
 

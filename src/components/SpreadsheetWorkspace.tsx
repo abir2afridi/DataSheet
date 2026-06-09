@@ -33,12 +33,13 @@ import {
 } from "lucide-react";
 import { SmartFile, SheetData, CellData, LockLevel, CellStyle } from "../types";
 import { parseCellAddress, colLabelToIdx, idxToColLabel, evaluateFormula, detectFormulaError } from "../utils/formulas";
+import { getCells, upsertCells, getSheets, createSheet } from "../lib/db";
 
 interface SpreadsheetWorkspaceProps {
   file: SmartFile;
   onUpdateFile: (updatedFile: SmartFile) => void;
   unlockModeActive: boolean;
-  onLogActivity: (type: "edit" | "lock" | "unlock" | "copy", details: string) => void;
+  onLogActivity: (type: "edit" | "lock" | "unlock" | "copy" | "paste", details: string) => void;
   onAddClipboardEntry: (content: string, type: string, cellAddress: string) => void;
 }
 
@@ -64,6 +65,7 @@ export default function SpreadsheetWorkspace({
   const [selectedCell, setSelectedCell] = useState<string | null>(null); // e.g. "A1"
   const [dragStart, setDragStart] = useState<string | null>(null);
   const [dragEnd, setDragEnd] = useState<string | null>(null);
+  const [isMouseDown, setIsMouseDown] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editInputVal, setEditInputVal] = useState("");
   const [formulaInputVal, setFormulaInputVal] = useState("");
@@ -91,16 +93,100 @@ export default function SpreadsheetWorkspace({
 
   // Sidebar drawers for notes and history
   const [showCellDetailsDrawer, setShowCellDetailsDrawer] = useState(false);
-  const [drawerCommentText, setDrawerCommentText] = useState("");
   const [drawerNoteText, setDrawerNoteText] = useState("");
 
   // Ref selectors for inline editing transitions
   const editorInputRef = useRef<HTMLInputElement>(null);
+  const formulaDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Column & Row resize state
+  const [colWidths, setColWidths] = useState<Record<number, number>>({});
+  const [rowHeights, setRowHeights] = useState<Record<number, number>>({});
+  const resizeRef = useRef<{
+    type: "col" | "row";
+    index: number;
+    startX: number;
+    startY: number;
+    startSize: number;
+  } | null>(null);
+
+  const DEF_COL_WIDTH = 96;
+  const DEF_ROW_HEIGHT = 24;
+
+  // Window-level resize mouse handler
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!resizeRef.current) return;
+      const r = resizeRef.current;
+      if (r.type === "col") {
+        const diff = e.clientX - r.startX;
+        const newWidth = Math.max(40, r.startSize + diff);
+        setColWidths(prev => ({ ...prev, [r.index]: Math.round(newWidth) }));
+      } else {
+        const diff = e.clientY - r.startY;
+        const newHeight = Math.max(20, r.startSize + diff);
+        setRowHeights(prev => ({ ...prev, [r.index]: Math.round(newHeight) }));
+      }
+    };
+    const handleMouseUp = () => {
+      resizeRef.current = null;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, []);
+
+  // Clean up formula debounce on unmount
+  useEffect(() => {
+    return () => {
+      if (formulaDebounceRef.current) clearTimeout(formulaDebounceRef.current);
+    };
+  }, []);
+
+  // Autosave cells to Supabase on change
+  const cellsRef = useRef(cells);
+  cellsRef.current = cells;
+  useEffect(() => {
+    if (!activeSheetId) return;
+    const t = setTimeout(async () => {
+      try {
+        await upsertCells(activeSheetId, cellsRef.current);
+      } catch {}
+    }, 2000);
+    return () => clearTimeout(t);
+  }, [cells, activeSheetId]);
+
+  // Load cells from Supabase on mount
+  useEffect(() => {
+    if (!activeSheetId || !file.id) return;
+    const loadCells = async () => {
+      try {
+        const dbSheets = await getSheets(file.id);
+        if (dbSheets.length > 0) {
+          const dbCells = await getCells(activeSheetId);
+          if (Object.keys(dbCells).length > 0) {
+            const updatedSheet = { ...activeSheet, cells: dbCells };
+            const updatedSheets = sheets.map(s => (s.id === updatedSheet.id ? updatedSheet : s));
+            onUpdateFile({ ...file, sheets: updatedSheets, updatedAt: Date.now() });
+          }
+        }
+      } catch {}
+    };
+    loadCells();
+  }, [activeSheetId]);
 
   // Reset active sheet selection automatically
   useEffect(() => {
-    if (sheets.length > 0 && !activeSheetId) {
-      setActiveSheetId(sheets[0].id);
+    if (sheets.length > 0) {
+      const stillValid = sheets.some(s => s.id === activeSheetId);
+      if (!activeSheetId || !stillValid) {
+        setActiveSheetId(sheets[0].id);
+      }
     }
   }, [sheets, activeSheetId]);
 
@@ -164,9 +250,49 @@ export default function SpreadsheetWorkspace({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [selectedCell, isEditing, rowCount, colCount]);
 
+  // Handle paste events with lock protection
+  useEffect(() => {
+    const handlePaste = (e: ClipboardEvent) => {
+      if (isEditing) return;
+      const target = selectedCell;
+      if (!target) return;
+      const parsed = parseCellAddress(target);
+      if (!parsed) return;
+
+      const text = e.clipboardData?.getData("text/plain");
+      if (!text) return;
+
+      e.preventDefault();
+
+      const rows = text.split("\n").filter(r => r.length > 0);
+      const pasteData = rows.map(r => r.split("\t"));
+
+      const newCells = { ...cells };
+      let modifiedCount = 0;
+
+      pasteData.forEach((rowData, ri) => {
+        rowData.forEach((val, ci) => {
+          const addr = `${idxToColLabel(parsed.colIdx + ci)}${parsed.rowIdx + ri + 1}`;
+          const existing = newCells[addr];
+          if (existing && existing.lockLevel !== LockLevel.NONE) return; // Skip locked
+          newCells[addr] = { ...(existing || { value: "", lockLevel: LockLevel.NONE }), value: val };
+          modifiedCount++;
+        });
+      });
+
+      if (modifiedCount > 0) {
+        updateSheetInFile({ ...activeSheet, cells: newCells });
+        onLogActivity("paste", `Pasted ${modifiedCount} cell(s) starting at [${target}]`);
+      }
+    };
+
+    window.addEventListener("paste", handlePaste);
+    return () => window.removeEventListener("paste", handlePaste);
+  }, [selectedCell, isEditing, cells, activeSheet]);
+
   // Compute bounding box for cell selections (Bulk actions)
   const selectionRange = useMemo(() => {
-    if (!dragStart || !dragEnd) return [selectedCell];
+    if (!dragStart || !dragEnd) return selectedCell ? [selectedCell] : [];
     const start = parseCellAddress(dragStart);
     const end = parseCellAddress(dragEnd);
     if (!start || !end) return [];
@@ -203,10 +329,22 @@ export default function SpreadsheetWorkspace({
     });
   };
 
-  const handleCellClick = (cellAddress: string) => {
+  const handleCellMouseDown = (cellAddress: string) => {
+    setIsMouseDown(true);
     // If unlock mode active, check lock and unlock
     const cell = cells[cellAddress];
     if (unlockModeActive && cell && cell.lockLevel !== LockLevel.NONE) {
+      setSelectedCell(cellAddress);
+      // SOFT lock: single-click auto-unlock without modal
+      if (cell.lockLevel === LockLevel.SOFT) {
+        const updatedCell: CellData = { ...cell, lockLevel: LockLevel.NONE, lockPassword: undefined };
+        updateSheetInFile({
+          ...activeSheet,
+          cells: { ...cells, [cellAddress]: updatedCell },
+        });
+        onLogActivity("unlock", `Bypassed soft lock on cell [${cellAddress}]`);
+        return;
+      }
       setUnlockTargetAddr(cellAddress);
       setUnlockPasswordInput("");
       setUnlockError("");
@@ -220,8 +358,12 @@ export default function SpreadsheetWorkspace({
     setIsEditing(false);
   };
 
+  const handleCellMouseUp = () => {
+    setIsMouseDown(false);
+  };
+
   const handleCellDrag = (cellAddress: string) => {
-    if (dragStart) {
+    if (dragStart && isMouseDown) {
       setDragEnd(cellAddress);
     }
   };
@@ -276,11 +418,11 @@ export default function SpreadsheetWorkspace({
 
     const newCells = { ...cells, [selectedCell]: updatedCell };
 
-    // Formula dependencies re-evaluator. Re-evaluate all other sheet formulas
+    // Formula dependencies re-evaluator. Re-evaluate all other unlocked sheet formulas
     Object.keys(newCells).forEach(coord => {
       const c = newCells[coord];
-      if (c && c.formula && c.formula.startsWith("=")) {
-        c.value = evaluateFormula(c.formula, sheets, activeSheet.id);
+      if (c && c.formula && c.formula.startsWith("=") && c.lockLevel === LockLevel.NONE) {
+        newCells[coord] = { ...c, value: evaluateFormula(c.formula, sheets, activeSheet.id) };
       }
     });
 
@@ -298,6 +440,7 @@ export default function SpreadsheetWorkspace({
     if (selectionRange.length === 0) return;
 
     const newCells = { ...cells };
+    let modifiedCount = 0;
     selectionRange.forEach(addr => {
       const cell = newCells[addr] || { value: "", lockLevel: LockLevel.NONE };
       if (cell.lockLevel === LockLevel.NONE) {
@@ -308,11 +451,12 @@ export default function SpreadsheetWorkspace({
             ...styleChanges,
           },
         };
+        modifiedCount++;
       }
     });
 
     updateSheetInFile({ ...activeSheet, cells: newCells });
-    onLogActivity("edit", `Formatted ${selectionRange.length} selected cells`);
+    onLogActivity("edit", `Formatted ${modifiedCount} selected cells`);
   };
 
   // Setup sheet locking options
@@ -400,6 +544,9 @@ export default function SpreadsheetWorkspace({
     });
 
     setShowUnlockModal(false);
+    setSelectedCell(unlockTargetAddr);
+    setDragStart(unlockTargetAddr);
+    setDragEnd(unlockTargetAddr);
     setUnlockTargetAddr(null);
     onLogActivity("unlock", `Bypassed smart lock on cell [${unlockTargetAddr}]`);
   };
@@ -480,6 +627,7 @@ export default function SpreadsheetWorkspace({
       ...s,
       id: newId,
       name: newName,
+      cells: { ...s.cells },
     };
 
     onUpdateFile({
@@ -641,12 +789,15 @@ export default function SpreadsheetWorkspace({
             placeholder="Introduce aggregate commands, formula triggers e.g., =SUM(A1:B3) or =B5 + C5"
             value={formulaInputVal}
             onChange={e => {
-              setFormulaInputVal(e.target.value);
+              const val = e.target.value;
+              setFormulaInputVal(val);
               if (selectedCell) {
-                // Instantly sync preview values
                 const current = cells[selectedCell] || { value: "", lockLevel: LockLevel.NONE };
                 if (current.lockLevel === LockLevel.NONE) {
-                  saveActiveCellChange(e.target.value, e.target.value);
+                  if (formulaDebounceRef.current) clearTimeout(formulaDebounceRef.current);
+                  formulaDebounceRef.current = setTimeout(() => {
+                    saveActiveCellChange(val);
+                  }, 300);
                 }
               }
             }}
@@ -659,22 +810,33 @@ export default function SpreadsheetWorkspace({
       <div className="flex-1 flex overflow-hidden">
         
         {/* Core Matrix Scroller */}
-        <div className="flex-1 overflow-auto relative scrollbar-thin scrollbar-thumb-emerald-900">
+        <div className="flex-1 overflow-auto relative scrollbar-thin scrollbar-thumb-emerald-900" onMouseUp={handleCellMouseUp}>
           <table className="w-full border-collapse table-fixed text-xs font-mono text-emerald-400 mb-12">
             <thead>
               {/* Columns labels header row */}
               <tr className="bg-[#050a06] text-emerald-600 border-b border-emerald-500/20 select-none">
-                <th className="w-12 h-6 border-r border-[#10b981]/15 font-black text-center sticky top-0 left-0 bg-[#050a06] z-25 text-[10px]">
+                <th className="w-12 h-6 border-r border-[#10b981]/40 font-black text-center sticky top-0 left-0 bg-[#050a06] z-25 text-[10px]">
                   ID
                 </th>
                 {Array.from({ length: colCount }).map((_, c) => {
                   const letter = idxToColLabel(c);
                   return (
-                    <th
-                      key={`col-${letter}`}
-                      className="w-24 h-6 border-r border-[#10b981]/15 font-black text-center sticky top-0 bg-[#050a06] z-20 text-[10px]"
-                    >
-                      {letter}
+                  <th
+                    key={`col-${letter}`}
+                    className="w-24 h-6 border-r border-[#10b981]/40 font-black text-center sticky top-0 bg-[#050a06] z-20 text-[10px] select-none relative"
+                    style={{ width: colWidths[c] ? `${colWidths[c]}px` : undefined }}
+                  >
+                    {letter}
+                    <div
+                      className="absolute top-0 right-0 w-1.5 h-full cursor-col-resize hover:bg-emerald-500/30 active:bg-emerald-500/50 z-30"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        resizeRef.current = { type: "col", index: c, startX: e.clientX, startY: 0, startSize: colWidths[c] || DEF_COL_WIDTH };
+                        document.body.style.cursor = "col-resize";
+                        document.body.style.userSelect = "none";
+                      }}
+                    />
                     </th>
                   );
                 })}
@@ -685,10 +847,22 @@ export default function SpreadsheetWorkspace({
               {Array.from({ length: rowCount }).map((_, r) => {
                 const rowNum = r + 1;
                 return (
-                  <tr key={`row-${rowNum}`} className="h-6 border-b border-[#10b981]/10 hover:bg-[#07130c]/30">
+                  <tr key={`row-${rowNum}`} className="h-6 border-b border-[#10b981]/40 hover:bg-[#07130c]/30">
                     {/* Sticky row indicator */}
-                    <td className="sticky left-0 bg-[#050a06] font-bold text-emerald-600 border-r border-[#10b981]/20 text-center select-none text-[10px] w-12 z-10">
+                    <td className="sticky left-0 bg-[#050a06] font-bold text-emerald-600 border-r border-[#10b981]/50 text-center select-none text-[10px] w-12 z-10 relative"
+                      style={{ height: rowHeights[r] ? `${rowHeights[r]}px` : undefined }}
+                    >
                       {rowNum}
+                      <div
+                        className="absolute bottom-0 left-0 right-0 h-1.5 cursor-row-resize hover:bg-emerald-500/30 active:bg-emerald-500/50 z-30"
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          resizeRef.current = { type: "row", index: r, startX: 0, startY: e.clientY, startSize: rowHeights[r] || DEF_ROW_HEIGHT };
+                          document.body.style.cursor = "row-resize";
+                          document.body.style.userSelect = "none";
+                        }}
+                      />
                     </td>
 
                     {/* Columns nodes indices */}
@@ -710,7 +884,7 @@ export default function SpreadsheetWorkspace({
                           : "text-left";
 
                       // Identify lock design attributes
-                      let cellBorderColor = "border-[#10b981]/10";
+                      let cellBorderColor = "border-[#10b981]/40";
                       let cellBgClass = "bg-transparent";
 
                       if (cell.lockLevel === LockLevel.SOFT) {
@@ -739,7 +913,7 @@ export default function SpreadsheetWorkspace({
                       return (
                         <td
                           key={addr}
-                          onMouseDown={() => handleCellClick(addr)}
+                          onMouseDown={() => handleCellMouseDown(addr)}
                           onMouseEnter={() => {
                             handleCellDrag(addr);
                             setHoverCell(addr);
@@ -747,9 +921,11 @@ export default function SpreadsheetWorkspace({
                           onMouseLeave={() => {
                             setHoverCell(null);
                           }}
+                          onMouseUp={handleCellMouseUp}
                           onDoubleClick={() => handleDoubleClick(addr)}
-                          className={`relative border-r px-1.5 h-6 cursor-cell overflow-hidden whitespace-nowrap text-ellipsis transition-colors select-none group font-mono ${cellBgClass} ${cellBorderColor} ${alignClass}`}
+                          className={`relative border-r px-1.5 cursor-cell overflow-hidden whitespace-nowrap text-ellipsis transition-colors select-none group font-mono ${cellBgClass} ${cellBorderColor} ${alignClass}`}
                           style={{
+                            height: rowHeights[r] ? `${rowHeights[r]}px` : DEF_ROW_HEIGHT,
                             fontWeight: customStyle.bold ? "bold" : "normal",
                             fontStyle: customStyle.italic ? "italic" : "normal",
                             textDecoration: customStyle.underline ? "underline" : "none",
@@ -1008,12 +1184,12 @@ export default function SpreadsheetWorkspace({
 
       {/* Flagship Lock setup Options Modal popup dialog */}
       {showLockConfigModal && lockTargetCell && (
-        <div className="fixed inset-0 z-45 bg-black/75 flex items-center justify-center p-4">
-          <div className="bg-[#0c120e] border border-emerald-500 rounded p-5 font-mono max-w-sm w-full shadow-2xl space-y-4">
+        <div className="fixed inset-0 z-45 bg-black/75 flex items-center justify-center p-4" onClick={() => setShowLockConfigModal(false)}>
+          <div className="bg-[#0c120e] border border-emerald-500 rounded p-5 font-mono max-w-sm w-full shadow-2xl space-y-4" onClick={e => e.stopPropagation()}>
             
             <div className="flex items-center gap-2 border-b border-emerald-900 pb-2">
               <FolderLock size={16} className="text-red-400 animate-pulse" />
-              <h3 className="text-xs font-bold text-emerald-100 uppercase uppercase">Configure Smart Cell Locks</h3>
+              <h3 className="text-xs font-bold text-emerald-100 uppercase">Configure Smart Cell Locks</h3>
             </div>
 
             <div className="text-[11px] text-emerald-505 bg-black/40 p-2 border border-emerald-950 rounded flex flex-col gap-1.5 leading-relaxed">
@@ -1111,8 +1287,8 @@ export default function SpreadsheetWorkspace({
 
       {/* Security Confirm override unlocking popups modal */}
       {showUnlockModal && unlockTargetAddr && (
-        <div className="fixed inset-0 z-45 bg-black/85 flex items-center justify-center p-4">
-          <div className="bg-[#0e0a0a] border border-red-900 rounded p-5 font-mono max-w-sm w-full shadow-2xl space-y-4">
+        <div className="fixed inset-0 z-45 bg-black/85 flex items-center justify-center p-4" onClick={() => { setShowUnlockModal(false); setUnlockTargetAddr(null); }}>
+          <div className="bg-[#0e0a0a] border border-red-900 rounded p-5 font-mono max-w-sm w-full shadow-2xl space-y-4" onClick={e => e.stopPropagation()}>
             
             <div className="flex items-center gap-2 border-b border-red-950 pb-2 text-red-400">
               <Unlock size={16} className="animate-bounce" />
@@ -1126,7 +1302,7 @@ export default function SpreadsheetWorkspace({
 
             {/* Warning details instructions based on levels */}
             {cells[unlockTargetAddr]?.lockLevel === LockLevel.PROTECTED && (
-              <p className="text-[10px] text-red-650 leading-relaxed font-sans">
+              <p className="text-[10px] text-red-400 leading-relaxed font-sans">
                 You are about to modify a highly secure coordinate cell in your second brain workbook. Select override below to bypass.
               </p>
             )}

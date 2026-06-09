@@ -151,8 +151,23 @@ export function evaluateFormula(
       const funcName = funcMatch[1];
       const argsRaw = funcMatch[2];
 
-      // Parse argument strings (respecting comma inside nested scopes, but simple comma split works)
-      const args = argsRaw.split(",").map(a => a.trim());
+      // Parse argument strings, respecting commas inside quotes and nested parens
+      const args: string[] = [];
+      let current = "";
+      let parenDepth = 0;
+      let inQuote = false;
+      for (const ch of argsRaw) {
+        if (ch === '"') inQuote = !inQuote;
+        else if (ch === '(' && !inQuote) parenDepth++;
+        else if (ch === ')' && !inQuote) parenDepth--;
+        if (ch === "," && parenDepth === 0 && !inQuote) {
+          args.push(current.trim());
+          current = "";
+        } else {
+          current += ch;
+        }
+      }
+      if (current.trim()) args.push(current.trim());
 
       // Expand ranges if present
       const resolvedValues: number[] = [];

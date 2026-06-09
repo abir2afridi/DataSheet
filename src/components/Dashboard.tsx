@@ -168,7 +168,7 @@ export default function Dashboard({
                     style={{ width: `${totalLockedCellsCount > 0 ? (softLocks / totalLockedCellsCount) * 100 : 0}%` }}
                   />
                 </div>
-                <p className="text-[9px] text-emerald-650 opacity-60 mt-0.5">Unlocked via quick bypass.</p>
+                <p className="text-[9px] text-emerald-600 opacity-60 mt-0.5">Unlocked via quick bypass.</p>
               </div>
 
               {/* Level 2 Confirmation Locks */}
@@ -183,7 +183,7 @@ export default function Dashboard({
                     style={{ width: `${totalLockedCellsCount > 0 ? (protectedLocks / totalLockedCellsCount) * 100 : 0}%` }}
                   />
                 </div>
-                <p className="text-[9px] text-emerald-650 opacity-60 mt-0.5">Requires warning click validation.</p>
+                <p className="text-[9px] text-emerald-600 opacity-60 mt-0.5">Requires warning click validation.</p>
               </div>
 
               {/* Level 3 Password Locks */}
@@ -198,7 +198,7 @@ export default function Dashboard({
                     style={{ width: `${totalLockedCellsCount > 0 ? (vaultLocks / totalLockedCellsCount) * 100 : 0}%` }}
                   />
                 </div>
-                <p className="text-[9px] text-emerald-650 opacity-60 mt-0.5">Protected with encrypted keys.</p>
+                <p className="text-[9px] text-emerald-600 opacity-60 mt-0.5">Protected with encrypted keys.</p>
               </div>
 
               {/* Level 4 Permanent Locks */}
@@ -213,7 +213,7 @@ export default function Dashboard({
                     style={{ width: `${totalLockedCellsCount > 0 ? (permanentLocks / totalLockedCellsCount) * 100 : 0}%` }}
                   />
                 </div>
-                <p className="text-[9px] text-red-650 opacity-80 mt-0.5">Bypassed only via Recovery Console.</p>
+                <p className="text-[9px] text-red-500 opacity-80 mt-0.5">Bypassed only via Recovery Console.</p>
               </div>
             </div>
           </div>
@@ -308,7 +308,7 @@ export default function Dashboard({
                           </button>
                         )}
                       </div>
-                      <p className="text-[11px] text-emerald-250 mt-1">{log.details}</p>
+                      <p className="text-[11px] text-emerald-500 mt-1">{log.details}</p>
                     </div>
                   </div>
                 ))
@@ -337,7 +337,7 @@ export default function Dashboard({
                       <div className="flex items-center gap-2 text-[9px] text-[#ff9900] font-sans">
                         <span>{new Date(item.timestamp).toLocaleTimeString()}</span>
                         <span className="opacity-40">|</span>
-                        <span className="bg-emerald-950/40 text-emerald-400 border border-emerald-900 px-1 py-0.2 rounded text-[8px]">
+                        <span className="bg-emerald-950/40 text-emerald-400 border border-emerald-900 px-1 py-0.5 rounded text-[8px]">
                           {item.type}
                         </span>
                         {item.cellAddress && (
