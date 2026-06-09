@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { SmartFile, Folder, TrashItem, ActivityLog, CopyHistoryEntry, HybridBlock, WorkspaceType, LockLevel, SheetData, CellData } from "./types";
 import Header from "./components/Header";
 import Sidebar from "./components/Sidebar";
@@ -48,6 +48,10 @@ export default function App() {
 
   // --- Real-time user notification toasters ---
   const [customToaster, setCustomToaster] = useState<{ message: string; type: "success" | "warn" } | null>(null);
+
+  // --- Cloud sync status indicator (like Google Sheets "Sync to Drive") ---
+  const [syncStatus, setSyncStatus] = useState<"saved" | "saving" | "error">("saved");
+  const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // --- Theme state and synchronization logic ---
   const [theme, setTheme] = useState<"dark" | "light">(() => {
@@ -184,6 +188,13 @@ export default function App() {
     syncFoldersToDB(newFolders);
     syncWorkspacesToDB(newFiles);
     syncTrashToDB(_newTrash);
+    triggerSyncIndicator();
+  };
+
+  const triggerSyncIndicator = () => {
+    setSyncStatus("saving");
+    if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
+    syncTimerRef.current = setTimeout(() => setSyncStatus("saved"), 1200);
   };
 
   // --- Dynamic system tracking logging triggers ---
@@ -560,6 +571,7 @@ export default function App() {
         mobileSidebarOpen={mobileSidebarOpen}
         isHome={activeView === "home"}
         onLogin={() => setActiveView("login")}
+        syncStatus={syncStatus}
       />
 
       {/* Main Structural row layout */}

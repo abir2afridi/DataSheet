@@ -14,10 +14,11 @@ export default function Login({ onBack }: LoginProps) {
     setLoading(true);
     setError("");
     try {
+      const siteUrl = import.meta.env.VITE_SITE_URL || window.location.origin;
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: window.location.origin,
+          redirectTo: siteUrl,
         },
       });
       if (error) throw error;

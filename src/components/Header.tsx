@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect } from "react";
-import { Lock, Unlock, Search, Terminal, Radio, Shield, HelpCircle, Eye, Sun, Moon, Menu, X } from "lucide-react";
+import { Lock, Unlock, Search, Terminal, Radio, Shield, HelpCircle, Eye, Sun, Moon, Menu, X, Cloud, CheckCircle, AlertCircle } from "lucide-react";
 
 interface HeaderProps {
   onOpenPalette: () => void;
@@ -20,6 +20,7 @@ interface HeaderProps {
   mobileSidebarOpen?: boolean;
   isHome?: boolean;
   onLogin?: () => void;
+  syncStatus?: "saved" | "saving" | "error";
 }
 
 export default function Header({
@@ -36,6 +37,7 @@ export default function Header({
   mobileSidebarOpen,
   isHome = false,
   onLogin,
+  syncStatus = "saved",
 }: HeaderProps) {
   const [currentTime, setCurrentTime] = useState("");
   const [pulse, setPulse] = useState(true);
@@ -129,6 +131,34 @@ export default function Header({
               <span className="text-red-500 text-[9px] animate-pulse ml-1">
                 ({lockStats.vault} VAULTED)
               </span>
+            )}
+          </div>
+        )}
+
+        {/* Cloud Sync Status Indicator — like Google Sheets "Sync to Drive" */}
+        {!isHome && (
+          <div className={`flex items-center gap-1.5 px-2 py-1 rounded text-[10px] transition-all duration-300 ${
+            syncStatus === "saving"
+              ? "bg-emerald-950/30 border border-emerald-500/30 text-emerald-400"
+              : syncStatus === "error"
+              ? "bg-red-950/30 border border-red-500/30 text-red-400"
+              : "bg-emerald-950/10 border border-emerald-900/20 text-emerald-600"
+          }`}>
+            {syncStatus === "saving" ? (
+              <>
+                <Cloud size={12} className="animate-bounce text-emerald-400" />
+                <span className="font-bold">Saving...</span>
+              </>
+            ) : syncStatus === "error" ? (
+              <>
+                <AlertCircle size={12} className="text-red-400" />
+                <span>Sync Error</span>
+              </>
+            ) : (
+              <>
+                <CheckCircle size={12} className="text-emerald-500" />
+                <span>Saved</span>
+              </>
             )}
           </div>
         )}

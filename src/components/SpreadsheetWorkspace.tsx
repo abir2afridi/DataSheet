@@ -330,6 +330,11 @@ export default function SpreadsheetWorkspace({
   };
 
   const handleCellMouseDown = (cellAddress: string) => {
+    // Save any unsaved edit before navigating away
+    if (isEditing && selectedCell !== cellAddress) {
+      saveActiveCellChange(editInputVal);
+    }
+
     setIsMouseDown(true);
     // If unlock mode active, check lock and unlock
     const cell = cells[cellAddress];
