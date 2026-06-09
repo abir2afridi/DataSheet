@@ -96,7 +96,7 @@ export interface DescriptionTab {
 
 export interface HybridBlock {
   id: string;
-  type: "spreadsheet" | "document" | "code" | "checklist" | "prompt" | "reference";
+  type: "spreadsheet" | "document" | "code" | "checklist" | "prompt" | "reference" | "multi";
   title: string;
   locked?: boolean;
   descriptionTabs?: DescriptionTab[];

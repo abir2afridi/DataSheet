@@ -269,7 +269,7 @@ export default function App() {
   };
 
   // --- Document File Actions ---
-  const handleCreateFile = (type: WorkspaceType, name: string, folderId: string | null, hybridBlockType?: "spreadsheet" | "document" | "code" | "checklist" | "prompt" | "reference") => {
+  const handleCreateFile = (type: WorkspaceType, name: string, folderId: string | null, hybridBlockType?: "spreadsheet" | "document" | "code" | "checklist" | "prompt" | "reference" | "multi") => {
     const fileId = `file_${Date.now()}`;
     const freshPayload: SmartFile = {
       id: fileId,
@@ -310,6 +310,7 @@ export default function App() {
       if (bt === "prompt") block.promptTemplate = "Write your prompt here...";
       if (bt === "reference") block.referenceUrl = "https://";
       if (bt === "spreadsheet") block.spreadsheetData = { rows: 20, cols: 8, cells: { A1: { value: "Start here", lockLevel: LockLevel.NONE } } };
+      if (bt === "multi") block.docContent = "Add modules using APPEND COMPONENT MODULE";
       freshPayload.hybridBlocks = [block];
     }
 

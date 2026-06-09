@@ -46,7 +46,7 @@ export default function HybridWorkspace({
   onAddClipboardEntry,
 }: HybridWorkspaceProps) {
   const blocks = file.hybridBlocks || [];
-  const [showAddMenu, setShowAddMenu] = useState(false);
+  const [showMultiMenu, setShowMultiMenu] = useState(false);
   // Track active description tab per block
   const [activeDescTab, setActiveDescTab] = useState<Record<string, number>>({});
 
@@ -55,6 +55,7 @@ export default function HybridWorkspace({
   const [promptBindings, setPromptBindings] = useState<Record<string, string>>({});
   const [newChecklistText, setNewChecklistText] = useState<Record<string, string>>({});
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
+  const [titleCopyFeedback, setTitleCopyFeedback] = useState(false);
   const [fullscreenBlockId, setFullscreenBlockId] = useState<string | null>(null);
   const [pendingDeleteTab, setPendingDeleteTab] = useState<{ blockId: string; tabIdx: number } | null>(null);
   const [pendingDeleteBlock, setPendingDeleteBlock] = useState<string | null>(null);
@@ -85,7 +86,7 @@ export default function HybridWorkspace({
     });
   };
 
-  const handleCreateBlock = (type: "spreadsheet" | "document" | "code" | "checklist" | "prompt" | "reference") => {
+  const handleCreateBlock = (type: "spreadsheet" | "document" | "code" | "checklist" | "prompt" | "reference" | "multi") => {
     const newBlock: HybridBlock = {
       id: `hy_${Date.now()}`,
       type,
@@ -126,7 +127,6 @@ export default function HybridWorkspace({
     }
 
     saveBlocksList([...blocks, newBlock]);
-    setShowAddMenu(false);
     onLogActivity("edit", `Appended hybrid block module: ${type}`);
   };
 
@@ -177,70 +177,52 @@ export default function HybridWorkspace({
           </div>
         </div>
 
-        {/* Append block shortcuts trigger */}
+        {/* Append block - dropdown for multi-mode, direct-add for single-type */}
         <div className="relative shrink-0">
           <button
-            onClick={() => setShowAddMenu(!showAddMenu)}
+            onClick={() => {
+              const firstType = blocks.length > 0 ? blocks[0].type : "spreadsheet";
+              if (firstType === "multi") {
+                setShowMultiMenu(!showMultiMenu);
+              } else {
+                handleCreateBlock(firstType);
+              }
+            }}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-950 hover:bg-emerald-900 border border-emerald-500 rounded text-xs font-bold text-emerald-100 transition-all cursor-pointer"
           >
             <Plus size={14} />
             <span>APPEND COMPONENT MODULE</span>
           </button>
 
-          {showAddMenu && (
+          {showMultiMenu && (
             <div className="absolute right-0 mt-2 bg-black/95 border border-emerald-500/30 w-52 rounded shadow-2xl z-40 p-1.5 font-mono text-xs">
               <div className="px-2 py-1 text-[8.5px] text-emerald-600 block uppercase font-bold border-b border-emerald-950 mb-1">
                 Insert Element Block
               </div>
-              
-              <button
-                onClick={() => handleCreateBlock("spreadsheet")}
-                className="w-full text-left px-2 py-1.5 hover:bg-emerald-950/20 text-emerald-400 rounded flex items-center gap-2"
-              >
+              <button onClick={() => { handleCreateBlock("spreadsheet"); setShowMultiMenu(false); }} className="w-full text-left px-2 py-1.5 hover:bg-emerald-950/20 text-emerald-400 rounded flex items-center gap-2">
                 <Grid size={12} className="text-emerald-500" />
                 <span>Micro Spreadsheet</span>
               </button>
-
-              <button
-                onClick={() => handleCreateBlock("document")}
-                className="w-full text-left px-2 py-1.5 hover:bg-emerald-950/20 text-emerald-400 rounded flex items-center gap-2"
-              >
+              <button onClick={() => { handleCreateBlock("document"); setShowMultiMenu(false); }} className="w-full text-left px-2 py-1.5 hover:bg-emerald-950/20 text-emerald-400 rounded flex items-center gap-2">
                 <FileText size={12} className="text-[#00ffcc]" />
                 <span>Document Memo Notes</span>
               </button>
-
-              <button
-                onClick={() => handleCreateBlock("code")}
-                className="w-full text-left px-2 py-1.5 hover:bg-emerald-950/20 text-emerald-400 rounded flex items-center gap-2"
-              >
+              <button onClick={() => { handleCreateBlock("code"); setShowMultiMenu(false); }} className="w-full text-left px-2 py-1.5 hover:bg-emerald-950/20 text-emerald-400 rounded flex items-center gap-2">
                 <Terminal size={12} className="text-indigo-400" />
                 <span>Developer Script File</span>
               </button>
-
-              <button
-                onClick={() => handleCreateBlock("checklist")}
-                className="w-full text-left px-2 py-1.5 hover:bg-emerald-950/20 text-emerald-400 rounded flex items-center gap-2"
-              >
+              <button onClick={() => { handleCreateBlock("checklist"); setShowMultiMenu(false); }} className="w-full text-left px-2 py-1.5 hover:bg-emerald-950/20 text-emerald-400 rounded flex items-center gap-2">
                 <CheckSquare size={12} className="text-[#ffbb00]" />
                 <span>Bento Task Checker</span>
               </button>
-
-              <button
-                onClick={() => handleCreateBlock("prompt")}
-                className="w-full text-left px-2 py-1.5 hover:bg-emerald-950/20 text-emerald-400 rounded flex items-center gap-2"
-              >
+              <button onClick={() => { handleCreateBlock("prompt"); setShowMultiMenu(false); }} className="w-full text-left px-2 py-1.5 hover:bg-emerald-950/20 text-emerald-400 rounded flex items-center gap-2">
                 <Sparkles size={12} className="text-[#00ff99]" />
                 <span>Automated Prompt File</span>
               </button>
-
-              <button
-                onClick={() => handleCreateBlock("reference")}
-                className="w-full text-left px-2 py-1.5 hover:bg-emerald-950/20 text-emerald-400 rounded flex items-center gap-2"
-              >
+              <button onClick={() => { handleCreateBlock("reference"); setShowMultiMenu(false); }} className="w-full text-left px-2 py-1.5 hover:bg-emerald-950/20 text-emerald-400 rounded flex items-center gap-2">
                 <Link size={12} className="text-cyan-400" />
                 <span>Reference URL link</span>
               </button>
-
             </div>
           )}
         </div>
@@ -421,6 +403,13 @@ export default function HybridWorkspace({
 
               {/* DRAW SPECIFIC payload widget templates */}
               
+              {/* Empty container for multi-mode placeholder */}
+              {block.type === "multi" && (
+                <div className="text-center py-8 text-emerald-700/50 font-mono text-[11px]">
+                  Multi Module Canvas — use APPEND COMPONENT MODULE above to add blocks
+                </div>
+              )}
+
               {/* SPECIFIC: embedded spreadsheet */}
               {block.type === "spreadsheet" && block.spreadsheetData && (
                 <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-emerald-950 select-none">
@@ -795,8 +784,11 @@ export default function HybridWorkspace({
           <div className="fixed inset-0 z-50 bg-[rgba(0,0,0,0.8)] backdrop-blur-sm flex items-center justify-center p-4" onClick={() => { setPendingDeleteBlock(null); setDeleteConfirmText(""); }}>
             <div className="bg-[#0b100d] border border-red-500/30 rounded p-4 font-mono max-w-sm w-full shadow-2xl" onClick={e => e.stopPropagation()}>
               <p className="text-red-400 text-xs font-bold uppercase mb-3">Delete Component Frame</p>
-              <p className="text-[11px] text-emerald-400 mb-2">
+              <p className="text-[11px] text-emerald-400 mb-2 flex items-center gap-1.5">
                 Type <span className="text-red-400 font-bold">"{blockTitle}"</span> to confirm deletion:
+                <button onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(blockTitle); setTitleCopyFeedback(true); setTimeout(() => setTitleCopyFeedback(false), 1500); }} className="text-emerald-600 hover:text-emerald-400" title="Copy title">
+                  {titleCopyFeedback ? <CheckCircle size={11} /> : <Copy size={11} />}
+                </button>
               </p>
               <input
                 type="text"
@@ -844,8 +836,11 @@ export default function HybridWorkspace({
                 </>
               ) : (
                 <>
-                  <p className="text-[11px] text-emerald-400 mb-2">
+                  <p className="text-[11px] text-emerald-400 mb-2 flex items-center gap-1.5">
                     Are you sure? Type <span className="text-red-400 font-bold">"{tabTitle}"</span> to confirm deletion:
+                    <button onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(tabTitle); setTitleCopyFeedback(true); setTimeout(() => setTitleCopyFeedback(false), 1500); }} className="text-emerald-600 hover:text-emerald-400" title="Copy title">
+                      {titleCopyFeedback ? <CheckCircle size={11} /> : <Copy size={11} />}
+                    </button>
                   </p>
                   <input
                     type="text"

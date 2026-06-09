@@ -40,7 +40,7 @@ interface SidebarProps {
   activeView: "editor" | "dashboard" | "recovery" | "profile" | "about" | "developer";
   onSelectFile: (fileId: string) => void;
   onSelectView: (view: "editor" | "dashboard" | "recovery" | "login" | "profile" | "about" | "developer") => void;
-  onCreateFile: (type: WorkspaceType, name: string, folderId: string | null, blockType?: "spreadsheet" | "document" | "code" | "checklist" | "prompt" | "reference") => void;
+  onCreateFile: (type: WorkspaceType, name: string, folderId: string | null, blockType?: "spreadsheet" | "document" | "code" | "checklist" | "prompt" | "reference" | "multi") => void;
   onCreateFolder: (name: string, parentId: string | null) => void;
   onDeleteFile: (fileId: string) => void;
   onDeleteFolder: (folderId: string) => void;
@@ -101,8 +101,10 @@ export default function Sidebar({
   const [newFolderName, setNewFolderName] = useState("");
   const [newFileName, setNewFileName] = useState("");
   const [newFileType, setNewFileType] = useState<WorkspaceType>(WorkspaceType.SPREADSHEET);
-  const [initialHybridBlockType, setInitialHybridBlockType] = useState<"spreadsheet" | "document" | "code" | "checklist" | "prompt" | "reference">("spreadsheet");
+  const [initialHybridBlockType, setInitialHybridBlockType] = useState<"spreadsheet" | "document" | "code" | "checklist" | "prompt" | "reference" | "multi">("spreadsheet");
   const [creationFolderTarget, setCreationFolderTarget] = useState<string | null>(null);
+  const [pendingDeleteFileId, setPendingDeleteFileId] = useState<string | null>(null);
+  const [deleteFileNameConfirm, setDeleteFileNameConfirm] = useState("");
 
   // Group tags
   const allTags = Array.from(new Set(files.flatMap(f => f.tags || [])));
@@ -132,8 +134,9 @@ export default function Sidebar({
 
   const executeCreateFile = () => {
     if (!newFileName.trim()) return;
-    const blockType = newFileType === WorkspaceType.HYBRID ? initialHybridBlockType : undefined;
+    const blockType = newFileType === WorkspaceType.HYBRID ? (initialHybridBlockType === "multi" ? "multi" : initialHybridBlockType) : undefined;
     onCreateFile(newFileType, newFileName.trim(), creationFolderTarget, blockType);
+    if (creationFolderTarget) setExpandedFolders(prev => ({ ...prev, [creationFolderTarget]: true }));
     setShowNewFileModal(false);
     setNewFileName("");
   };
@@ -298,8 +301,9 @@ export default function Sidebar({
                   <div className="absolute right-2 bg-black/95 border border-emerald-500/40 rounded p-1 text-[10px] space-y-1 z-30 shadow-xl">
                     <button
                       onClick={() => {
-                        onDeleteFile(file.id);
                         setActiveMenuFileId(null);
+                        setDeleteFileNameConfirm("");
+                        setPendingDeleteFileId(file.id);
                       }}
                       className="w-full text-left px-2 py-1 hover:bg-red-950/20 flex items-center gap-1.5 text-red-400"
                     >
@@ -723,6 +727,18 @@ export default function Sidebar({
                   <Link size={14} />
                   <span className="font-bold">Reference URL link</span>
                 </button>
+
+                <button
+                  onClick={() => { setNewFileType(WorkspaceType.HYBRID); setInitialHybridBlockType("multi"); }}
+                  className={`flex items-center gap-2 px-2 py-1.5 rounded border text-[10px] col-span-2 ${
+                    newFileType === WorkspaceType.HYBRID && initialHybridBlockType === "multi"
+                      ? "bg-emerald-950/35 border-[#ff9900] text-[#ff9900]"
+                      : "bg-black border-emerald-900 hover:border-emerald-700 text-emerald-500"
+                  }`}
+                >
+                  <LayoutGrid size={14} />
+                  <span className="font-bold">Multi Module Canvas</span>
+                </button>
               </div>
             </div>
 
@@ -743,6 +759,34 @@ export default function Sidebar({
           </div>
         </div>
       )}
+
+      {/* Delete file confirmation modal */}
+      {pendingDeleteFileId && (() => {
+        const targetFile = files.find(f => f.id === pendingDeleteFileId);
+        const fileName = targetFile?.name || "";
+        return (
+          <div className="fixed inset-0 z-40 bg-black/60 flex items-center justify-center p-4">
+            <div className="bg-[#0b100d] border border-red-500/30 rounded p-4 font-mono max-w-sm w-full shadow-2xl">
+              <p className="text-red-400 text-xs font-bold uppercase mb-3">Delete Work Unit</p>
+              <p className="text-[11px] text-emerald-400 mb-2">
+                Type <span className="text-red-400 font-bold">"{fileName}"</span> to confirm deletion:
+              </p>
+              <input
+                type="text"
+                className="w-full text-xs bg-black border border-red-900 rounded p-2 text-emerald-300 focus:outline-none focus:border-red-500 mb-3 font-mono"
+                placeholder={fileName}
+                value={deleteFileNameConfirm}
+                onChange={e => setDeleteFileNameConfirm(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter" && deleteFileNameConfirm === fileName) { onDeleteFile(pendingDeleteFileId); setPendingDeleteFileId(null); setDeleteFileNameConfirm(""); } }}
+              />
+              <div className="flex justify-end gap-2 text-[11px]">
+                <button onClick={() => { setPendingDeleteFileId(null); setDeleteFileNameConfirm(""); }} className="px-2.5 py-1 text-emerald-700 hover:text-emerald-400">Cancel</button>
+                <button onClick={() => { if (deleteFileNameConfirm === fileName) { onDeleteFile(pendingDeleteFileId); setPendingDeleteFileId(null); setDeleteFileNameConfirm(""); } }} className={`px-3 py-1 border rounded font-bold ${deleteFileNameConfirm === fileName ? "bg-red-950 border-red-500 text-red-300 hover:bg-red-900" : "bg-[#101c18] border-emerald-900 text-emerald-700 cursor-not-allowed"}`}>Delete</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
       </div>
     </>
   );
